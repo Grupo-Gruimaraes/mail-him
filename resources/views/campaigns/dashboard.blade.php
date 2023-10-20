@@ -24,7 +24,10 @@
                             <div class="flex-1 p-4 font-bold">Total de Leads</div>
                         </div>
                         @foreach($campaigns as $index => $campaign)
-                        <div class="flex {{ $index % 2 == 0 ? 'bg-slate-400' : 'bg-slate-300' }}">
+                        {{-- <div class="flex"> --}}
+                        {{-- <div class="flex border border-slate-200 rounded-sm {{ $index % 2 == 0 ? 'bg-slate-400' : 'bg-slate-300' }}"> --}}
+                        <div class="flex">
+                            {{-- <div class="flex-1 p-4 border border-slate-200 rounded-sm">{{ $campaign->name }}</div> --}}
                             <div class="flex-1 p-4">{{ $campaign->name }}</div>
                             <div class="flex-1 p-4">{{ $campaign->created_at }}</div>
                             <div class="flex-1 p-4">{{ $campaign->sendState }}</div>
