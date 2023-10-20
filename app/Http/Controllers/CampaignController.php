@@ -3,12 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\Campaign;
+use App\Models\Lead;
 use Illuminate\Http\Request;
 
 class CampaignController extends Controller
 {
     /**
-     * Display a listing of the resource.
+     * Visualização do dashboard, a view que apresenta as campanhas criadas e os tratados nela.
      */
     public function index()
     {
@@ -17,7 +18,7 @@ class CampaignController extends Controller
     }
 
     /**
-     * Show the form for creating a new resource.
+     * Retornar a view create que adiciona as campanhas na tabela.
      */
     public function create()
     {
@@ -25,7 +26,8 @@ class CampaignController extends Controller
     }
 
     /**
-     * Store a newly created resource in storage.
+     * Criar uma nova campanha no banco de dados adicionando os leads na tabela Leads quando 
+     * tiver o anexo csv em anexo.
      */
     public function campaignStore(Request $request)
     {
@@ -34,8 +36,35 @@ class CampaignController extends Controller
         $campaign->sendState = 'aguardando';
         $campaign->totalLeads = 0;
         $campaign->sendedLeads = 0;
-        $campaign->save();
+        
+        if ($request->hasFile('csv_file')) {
+            $file = $request->file('csv_file');
+            $filename = time() . '.' . $file->getClientOriginalExtension();
+            $path =$file->storeAs('campaigns', $filename, 'public');
+        
+            $campaign->save();
+            
+            $csv_data = array_map('str_getcsv', file(storage_path('app/public/' . $path)));
+            $headers = array_shift($csv_data);
 
+            foreach($csv_data as $row) {
+                $lead_data = array_combine($headers, $row);
+
+                $lead = new Lead();
+                $lead->name = $lead_data['name'];
+                $lead->phone = $lead_data['phone'];
+                $lead->email = $lead_data['email'];
+                $lead->campaign_id = $campaign->id;
+                $lead->ftd = isset($lead_data['ftd']) && !empty($lead_data['ftd']);
+                $lead->save();
+            }
+
+            $campaign->ftdLeads = Lead::where('campaign_id', $campaign->id)->where('ftd', true)->count();
+            $campaign->save();
+        } else {
+            $campaign->save();
+        }
+        
         return redirect()->route('campaigns.index');
     }
 
