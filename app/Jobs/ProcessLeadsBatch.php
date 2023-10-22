@@ -13,19 +13,35 @@ class ProcessLeadsBatch implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+    protected $leadsBatch;
     /**
-     * Create a new job instance.
+     * Cria uma novão instância de job.
+     * 
+     * @param array $leadsBatch
+     * @return void
      */
-    public function __construct()
+    public function __construct(array $leadsBatch)
     {
-        //
+        $this->leadsBatch = $leadsBatch;
     }
 
     /**
-     * Execute the job.
+     * Execute o job.
+     * 
+     * @return void
      */
-    public function handle(): void
+    public function handle()
     {
-        //
+        foreach ($this->leadsBatch as $leadData) {
+            $name = $leadData['name'];
+            $phone = $leadData['phone'];
+            $email = $leadData['email'];
+
+            $lead = new Lead();
+            $lead->name = $name;
+            $lead->phone = $phone;
+            $lead->email = $email;
+            $lead->save();
+        }
     }
 }

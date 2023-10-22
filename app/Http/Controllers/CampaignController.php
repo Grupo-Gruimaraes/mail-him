@@ -5,11 +5,14 @@ namespace App\Http\Controllers;
 use App\Models\Campaign;
 use App\Models\Lead;
 use Illuminate\Http\Request;
+use App\Jobs\ProcessLeadsBatch;
 
 class CampaignController extends Controller
 {
     /**
      * Visualização do dashboard, a view que apresenta as campanhas criadas e os leads recebidos.
+     * 
+     * 
      */
     public function index()
     {
@@ -19,6 +22,8 @@ class CampaignController extends Controller
 
     /**
      * Retornar a view campaign.create que adiciona as novas campanhas na tabela.
+     * 
+     * 
      */
     public function create()
     {
@@ -28,6 +33,8 @@ class CampaignController extends Controller
     /**
      * Criar uma nova campanha no banco de dados adicionando os leads na tabela Leads quando 
      * tiver o csv em anexo.
+     * 
+     * 
      */
     public function campaignStore(Request $request)
     {
@@ -44,19 +51,20 @@ class CampaignController extends Controller
         
             $campaign->save();
             
-            $csv_data = array_map('str_getcsv', file(storage_path('app/public/' . $path)));
-            $headers = array_shift($csv_data);
+            $handle = fopen(storage_path('app/public/' . $path), 'r');
+            $headers = fgetcsv($handle, 1000, ",");
 
-            foreach($csv_data as $row) {
-                $lead_data = array_combine($headers, $row);
-
-                $lead = new Lead();
-                $lead->name = $lead_data['name'];
-                $lead->phone = $lead_data['phone'];
-                $lead->email = $lead_data['email'];
-                $lead->campaign_id = $campaign->id;
-                $lead->ftd = isset($lead_data['ftd']) && !empty($lead_data['ftd']);
-                $lead->save();
+            $batchSize = 500;
+            $leadsBatch = [];
+            while($data = fgetcsv($handle, 1000, ",")) {
+                $leadsBatch[] = array_combine($headers, $data);
+                if (count($leadsBatch) == $batchSize) {
+                    ProcessLeadsBatch::dispatch($leadsBatch);
+                    $leadsBatch = [];
+                }
+            }
+            if (count($leadsBatch) > 0) {
+                ProcessLeadsBatch::dispatch($leadsBatch);
             }
 
             $campaign->totalLeads = Lead::where('campaign_id', $campaign->id)->count();
