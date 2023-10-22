@@ -9,7 +9,7 @@ use Illuminate\Http\Request;
 class CampaignController extends Controller
 {
     /**
-     * Visualização do dashboard, a view que apresenta as campanhas criadas e os tratados nela.
+     * Visualização do dashboard, a view que apresenta as campanhas criadas e os leads recebidos.
      */
     public function index()
     {
@@ -18,7 +18,7 @@ class CampaignController extends Controller
     }
 
     /**
-     * Retornar a view create que adiciona as campanhas na tabela.
+     * Retornar a view campaign.create que adiciona as novas campanhas na tabela.
      */
     public function create()
     {
@@ -27,7 +27,7 @@ class CampaignController extends Controller
 
     /**
      * Criar uma nova campanha no banco de dados adicionando os leads na tabela Leads quando 
-     * tiver o anexo csv em anexo.
+     * tiver o csv em anexo.
      */
     public function campaignStore(Request $request)
     {
@@ -59,6 +59,7 @@ class CampaignController extends Controller
                 $lead->save();
             }
 
+            $campaign->totalLeads = Lead::where('campaign_id', $campaign->id)->count();
             $campaign->ftdLeads = Lead::where('campaign_id', $campaign->id)->where('ftd', true)->count();
             $campaign->save();
         } else {
