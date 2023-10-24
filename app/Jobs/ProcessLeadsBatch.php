@@ -2,6 +2,8 @@
 
 namespace App\Jobs;
 
+use App\Models\Lead;
+use App\Models\Campaign;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -13,16 +15,19 @@ class ProcessLeadsBatch implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    protected $leadsBatch;
+    protected $leads;
+    protected $campaign_id;
     /**
      * Cria uma novão instância de job.
      * 
      * @param array $leadsBatch
+     * @param integer $campaign_id
      * @return void
      */
-    public function __construct(array $leadsBatch)
+    public function __construct(array $leads, $campaign_id)
     {
-        $this->leadsBatch = $leadsBatch;
+        $this->leads = $leads;
+        $this->campaign_id = $campaign_id;
     }
 
     /**
@@ -32,16 +37,17 @@ class ProcessLeadsBatch implements ShouldQueue
      */
     public function handle()
     {
-        foreach ($this->leadsBatch as $leadData) {
-            $name = $leadData['name'];
-            $phone = $leadData['phone'];
-            $email = $leadData['email'];
+        foreach ($this->leads as $lead) {
+            Lead::create([
+                'name' => $lead['name'],
+                'phone' => $lead['phone'],
+                'email' => $lead['email'],
+                'campaign_id' => $this->campaign_id,
+            ]);
 
-            $lead = new Lead();
-            $lead->name = $name;
-            $lead->phone = $phone;
-            $lead->email = $email;
-            $lead->save();
+            $campaign = Campaign::find($this->campaign_id);
+            $campaign->totalLeads = Lead::where('campaign_id', $this->campaign_id)->count();
+            $campaign->save();
         }
     }
 }

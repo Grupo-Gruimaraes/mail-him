@@ -43,13 +43,13 @@ class CampaignController extends Controller
         $campaign->sendState = 'aguardando';
         $campaign->totalLeads = 0;
         $campaign->sendedLeads = 0;
+        $campaign->save();
         
         if ($request->hasFile('csv_file')) {
             $file = $request->file('csv_file');
             $filename = time() . '.' . $file->getClientOriginalExtension();
             $path =$file->storeAs('campaigns', $filename, 'public');
         
-            $campaign->save();
             
             $handle = fopen(storage_path('app/public/' . $path), 'r');
             $headers = fgetcsv($handle, 1000, ",");
@@ -59,12 +59,12 @@ class CampaignController extends Controller
             while($data = fgetcsv($handle, 1000, ",")) {
                 $leadsBatch[] = array_combine($headers, $data);
                 if (count($leadsBatch) == $batchSize) {
-                    ProcessLeadsBatch::dispatch($leadsBatch);
+                    ProcessLeadsBatch::dispatch($leadsBatch, $campaign->id);
                     $leadsBatch = [];
                 }
             }
             if (count($leadsBatch) > 0) {
-                ProcessLeadsBatch::dispatch($leadsBatch);
+                ProcessLeadsBatch::dispatch($leadsBatch, $campaign->id);
             }
 
             $campaign->totalLeads = Lead::where('campaign_id', $campaign->id)->count();
