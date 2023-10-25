@@ -6,6 +6,7 @@ use App\Models\Campaign;
 use App\Models\Lead;
 use Illuminate\Http\Request;
 use App\Jobs\ProcessLeadsBatch;
+use Illuminate\Support\Facades\Http;
 
 class CampaignController extends Controller
 {
@@ -107,5 +108,43 @@ class CampaignController extends Controller
     public function destroy(string $id)
     {
         //
+    }
+
+    public function showPostbackCronForm()
+    {
+        $campaigns = Campaign::all();
+        return view('campaigns.postback-cron', ['campaigns' => $campaigns]);
+    }
+
+    public function postbackCron(Request $request)
+    {
+        $campaign = Campaign::find($request->campaign_id);
+        $interval = 0;
+
+        if ($request->postback_frequency == 'minute') {
+            $interval = 60 / $request->postback_count;
+        } elseif ($request->postback_frequency == 'hour') {
+            $interval = 3600 / $request->postback_count;
+        }
+
+        $leads = $campaign->leads;
+        foreach ($leads as $lead) {
+            $data = [
+                'name' => $lead->name,
+                'email' => $lead->email,
+                'phone' => $lead->phone,
+            ];
+
+            $webhookUrl = "URL_DO_WEBHOOK";
+            $response = Http::post($webhookUrl, $data);
+
+            if (!$response->successful()) {
+
+            }
+
+            sleep($interval);
+        }
+
+        return redirect()->route('campaigns.index')->with('message', 'Postbacks iniciados');
     }
 }

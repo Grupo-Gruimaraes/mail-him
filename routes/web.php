@@ -28,5 +28,7 @@ Route::middleware('auth')->group(function () {
 Route::get('/campaigns', [App\Http\Controllers\CampaignController::class, 'index'])->name('campaigns.index');
 Route::get('/campaigns-create', function(){ return view('campaigns.create'); });
 Route::post('/campaigns-create-store', [App\Http\Controllers\CampaignController::class, 'campaignStore'])->name('campaigns.store');
+Route::get('/campaigns-postback-cron-form', [App\Http\Controllers\CampaignController::class, 'showPostbackCronForm'])->name('campaigns.postback-cron-form');
+Route::post('/campaigns-postback-cron', [App\Http\Controllers\CampaignController::class, 'postbackCron'])->name('campaigns.postback.cron');
 
 require __DIR__.'/auth.php';
