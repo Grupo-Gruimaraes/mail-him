@@ -17,6 +17,12 @@
                 <x-input-error :messages="$errors->get('csv_file')" class="mt-2" />
             </div>
 
+            <div class="flex flex-col justify-start mt-4">
+                <x-input-label for="webhook_url" :value="__('Webhook URL')" />
+                <x-text-input id="webhook_url" class="block mt-1 w-full" type="url" name="webhook_url" required />
+                <x-input-error :messages="$errors->get('webhook_url')" class="mt-2" />
+            </div>
+
             <div class="mt-4">
                 <x-primary-button class="w-full justify-center">
                     {{ __('Cadastrar') }}

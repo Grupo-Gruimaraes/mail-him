@@ -23,10 +23,13 @@ Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+    Route::get('/campaigns', [App\Http\Controllers\CampaignController::class, 'index'])->name('campaigns.index');
+    Route::get('/campaigns-create', function(){ return view('campaigns.create'); });
+    Route::post('/campaigns-create-store', [App\Http\Controllers\CampaignController::class, 'campaignStore'])->name('campaigns.store');
+    Route::get('/campaigns-postback-cron-form', [App\Http\Controllers\CampaignController::class, 'showPostbackCronForm'])->name('campaigns.postback-cron-form');
+    Route::post('/campaigns-postback-cron', [App\Http\Controllers\CampaignController::class, 'postbackCron'])->name('campaigns.postback.cron');
 });
 
-Route::get('/campaigns', [App\Http\Controllers\CampaignController::class, 'index'])->name('campaigns.index');
-Route::get('/campaigns-create', function(){ return view('campaigns.create'); });
-Route::post('/campaigns-create-store', [App\Http\Controllers\CampaignController::class, 'campaignStore'])->name('campaigns.store');
+Route::post('/temporary-webhook', 'CampaignController@temporaryWebhook');
 
 require __DIR__.'/auth.php';

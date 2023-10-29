@@ -9,4 +9,9 @@ use Illuminate\Support\Facades\Schema;
 class Campaign extends Model
 {
     use HasFactory;
+
+    public function leads()
+    {
+        return $this->hasMany(Lead::class);
+    }
 }
