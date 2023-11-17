@@ -134,7 +134,9 @@ class CampaignController extends Controller
         }
 
         $leads = $campaign->leads;
-        foreach ($leads as $index => $lead) {
+        $totalLeadsToSend = min($leads->count(), $request->postback_count);
+
+        foreach ($leads->take($totalLeadsToSend) as $index => $lead) {
             $delayForThisLead = $index * $intervalInSeconds;
 
             SendPostback::dispatch($lead, $campaign->webhook_url)
