@@ -22,6 +22,7 @@
                             <div class="flex-1 p-4 font-bold">Estado de Envio</div>
                             <div class="flex-1 p-4 font-bold">Leads Enviados</div>
                             <div class="flex-1 p-4 font-bold">Total de Leads</div>
+                            <div class="flex-1 p-4 font-bold">Enviar Postbacks</div>
                         </div>
                         @foreach($campaigns as $index => $campaign)
                         {{-- <div class="flex"> --}}
@@ -33,6 +34,13 @@
                             <div class="flex-1 p-4">{{ $campaign->sendState }}</div>
                             <div class="flex-1 p-4">{{ $campaign->sendedLeads }}</div>
                             <div class="flex-1 p-4">{{ $campaign->totalLeads }}</div>
+                            <div class="flex-1 p-4"> 
+                                <a href="{{ url('/campaigns-postback-cron-form') }}">
+                                    <x-primary-button>
+                                        {{ __('Iniciar')}}
+                                    </x-primary-button>
+                                </a>    
+                            </div>
                         </div>
                         @endforeach
                     </div>
