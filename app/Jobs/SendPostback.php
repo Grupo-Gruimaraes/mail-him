@@ -32,6 +32,7 @@ class SendPostback implements ShouldQueue
      */
     public function handle()
     {
+        \Log::info("Executando SendPostback para lead: " . json_encode($this->lead));
         $webhookUrl = $this->lead->campaign->webhook_url;
         $data = [
             'name' => $this->lead->name,

@@ -1,0 +1,23 @@
+PHPUnit 10.4.1 by Sebastian Bergmann and contributors.
+
+Runtime:       PHP 8.2.7
+Configuration: /mnt/c/Users/John/Desktop/app-mail-him/phpunit.xml
+
+.F.                                                                 3 / 3 (100%)
+
+Time: 00:21.413, Memory: 26.00 MB
+
+There was 1 failure:
+
+1) Tests\Feature\PostbackCronTest::testarEnfileiramento
+The expected [App\Jobs\SendPostback] job was pushed 19 times instead of 14 times.
+Failed asserting that 19 is identical to 14.
+
+/mnt/c/Users/John/Desktop/app-mail-him/vendor/laravel/framework/src/Illuminate/Support/Testing/Fakes/QueueFake.php:117
+/mnt/c/Users/John/Desktop/app-mail-him/vendor/laravel/framework/src/Illuminate/Support/Testing/Fakes/QueueFake.php:97
+/mnt/c/Users/John/Desktop/app-mail-him/vendor/laravel/framework/src/Illuminate/Support/Facades/Facade.php:353
+/mnt/c/Users/John/Desktop/app-mail-him/tests/Feature/PostbackCronTest.php:24
+/mnt/c/Users/John/Desktop/app-mail-him/vendor/laravel/framework/src/Illuminate/Foundation/Testing/TestCase.php:174
+
+FAILURES!
+Tests: 3, Assertions: 3, Failures: 1.

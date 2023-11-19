@@ -37,16 +37,27 @@ class ProcessLeadsBatch implements ShouldQueue
      */
     public function handle()
     {
-        foreach ($this->leads as $lead) {
-            Lead::create([
-                'name' => $lead['name'],
-                'phone' => $lead['phone'],
-                'email' => $lead['email'],
+        \Log::info("Processando batch de leads para a campanha: " . $this->campaign_id);
+
+        $processedLeads = [];
+        foreach ($this->leads as $leadData) {
+            $lead = Lead::create([
+                'name' => $leadData['name'],
+                'phone' => $leadData['phone'],
+                'email' => $leadData['email'],
                 'campaign_id' => $this->campaign_id,
             ]);
 
-            $campaign = Campaign::find($this->campaign_id);
-            $campaign->totalLeads = Lead::where('campaign_id', $this->campaign_id)->count();
+            $processedLeads[] = $lead->toArray();
+        }
+
+        $campaign = Campaign::find($this->campaign_id);
+
+        if ($campaign) {
+            $currentLeads = json_decode($campaign->leads, true) ?? [];
+            $updatedLeads = array_merge($currentLeads, $processedLeads);
+            $campaign->leads = json_encode($updatedLeads);
+            $campaign->totalLeads += count ($processedLeads);
             $campaign->save();
         }
     }

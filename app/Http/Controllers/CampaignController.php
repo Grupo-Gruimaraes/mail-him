@@ -18,7 +18,7 @@ class CampaignController extends Controller
      */
     public function index()
     {
-        $campaigns = Campaign::all();
+        $campaigns = Campaign::paginate(10);
         return view('campaigns.dashboard', compact('campaigns'));
     }
 
@@ -71,6 +71,7 @@ class CampaignController extends Controller
                 }
             }
             if (count($leadsBatch) > 0) {
+                \Log::info("Leads processados do CSV: ", $leadsBatch);
                 ProcessLeadsBatch::dispatch($leadsBatch, $campaign->id);
             }
 
@@ -116,39 +117,88 @@ class CampaignController extends Controller
         //
     }
 
-    public function showPostbackCronForm()
+    public function showPostbackCronForm($campaignId)
     {
+        /*\Log::info("Recebido ID da campanha: " . $campaignId);*/
+
+        $selectedCampaign = Campaign::find($campaignId);
         $campaigns = Campaign::all();
-        return view('campaigns.postback-cron', ['campaigns' => $campaigns]);
+        if(!$selectedCampaign) {
+            abort(404, 'Campanha não encontrada');
+        }
+
+        /*\Log::info("Campanha selecionada: " . $selectedCampaign->name);*/
+
+        return view('campaigns.postback-cron', [
+            'selectedCampaign' => $selectedCampaign,
+            'campaigns' => $campaigns
+        ]);
     }
 
     public function postbackCron(Request $request)
     {
         $campaign = Campaign::find($request->campaign_id);
-        $intervalInSeconds = 0;
-
-        if ($request->postback_frequency == 'minute') {
-            $intervalInSeconds = 60 / $request->postback_count;
-        } elseif ($request->postback_frequency == 'hour') {
-            $intervalInSeconds = 3600 / $request->postback_count;
+        if (!$campaign) {
+            /*\Log::error("Campanha não encontrada para o ID: " . $request->campaign_id);*/
+            return response()->json(['error' => 'Campanha não encontrada'], 404);
         }
 
-        $leads = $campaign->leads;
-        $totalLeadsToSend = min($leads->count(), $request->postback_count);
+        $intervalInSeconds = ($request->postback_frequency == 'minute') ? 60 : 3600;
 
-        foreach ($leads->take($totalLeadsToSend) as $index => $lead) {
-            $delayForThisLead = $index * $intervalInSeconds;
+        $leads = $campaign->leads()->get();
+        $totalLeads = count($leads);
+        $totalBatches = ceil($totalLeads / $request->postback_count);
 
-            SendPostback::dispatch($lead, $campaign->webhook_url)
-            ->delay(now()->addSeconds($delayForThisLead));
+        $this->updateCampaignSendState($campaign->id);
+
+        for ($batch = 0; $batch < $totalBatches; $batch++) {
+            $batchStart = $batch * $request->postback_count;
+            $batchLeads = $leads->slice($batchStart, $request->postback_count);
+
+            foreach ($batchLeads as $index => $lead) {
+                $randomDelay = rand(0, $intervalInSeconds / $request->postback_count);
+                $delayForThisLead = ($batch * $intervalInSeconds) + ($index * ($intervalInSeconds / $request->postback_count)) + $randomDelay;
+                SendPostback::dispatch($lead, $campaign->webhook_url)->delay(now()->addSeconds($delayForThisLead));
+            }
+
+            $this->updateCampaignLeads($campaign->id, count($batchLeads));
+
+            $isFinalBatch = ($batch == $totalBatches - 1);
+            $this->updateCampaignSendState($campaign->id, $isFinalBatch);
+
         }
 
-        return redirect()->route('campaigns.index')->with('message', 'Postbacks iniciados');
+        return redirect()->route('campaigns.index')->with('message', 'Postbacks agendados');
     }
 
-    public function temporaryWebhook(Request $request) {
+    private function updateCampaignLeads($campaignId, $leadsCount)
+    {
+        $campaign = Campaign::find($campaignId);
+        if($campaign) 
+        {
+            $campaign->sendedLeads += $leadsCount;
+            $campaign->save();
+        }
+    }
+
+    private function updateCampaignSendState($campaignId, $isFinalBatch = false)
+    {
+        $campaign = Campaign::find($campaignId);
+        if($campaign)
+        {
+            if ($isFinalBatch)
+            {
+                $campaign->sendState = 'Finalizada';
+            } else {
+                $campaign->sendState = 'Enviando';
+            }
+            $campaign->save();
+        } 
+    }
+
+    /*public function temporaryWebhook(Request $request) {
         \Log::info('Dados recebidos pelo webhook: ', $request->all());
 
         return response()->json(['message' => 'Postbacks iniciados']);
-    }
+    }*/
 }
