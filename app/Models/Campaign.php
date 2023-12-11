@@ -8,7 +8,11 @@ use Illuminate\Support\Facades\Schema;
 
 class Campaign extends Model
 {
-    protected $fillable = ['nome', 'descricao', 'totalLeads', 'leads'];
+    protected $fillable = ['name', 'totalLeads', 'leads', 'isProcessing', 'sendState', 'status', 'sendedLeads', 'processedLeadsCount'];
+    
+    protected $casts = [
+        'isProcessing' => 'boolean',
+    ];
 
 
     use HasFactory;
