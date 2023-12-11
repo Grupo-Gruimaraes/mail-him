@@ -26,6 +26,7 @@
                             <div class="flex-1 p-4 font-bold">Postbacks Enviados</div>
                             <div class="flex-1 p-4 font-bold">Total de Leads</div>
                             <div class="flex-1 p-4 font-bold">Enviar Postbacks</div>
+                            {{-- <div class="flex-1 p-4 font-bold">Gerenciar</div> --}}
                         </div>
                         @foreach($campaigns as $index => $campaign)
                         <div class="flex">
@@ -42,6 +43,18 @@
                                 </a>    
                             </div>
                         </div>
+                        {{-- <div class="flex-1 p-4 flex-col"> 
+                            <a href="{{ url('/campaigns-postback-cron-form/' . $campaign->id) }}">
+                                <x-secondary-button class="flex-1 p-4 flex-col">
+                                    {{ __('Editar')}}
+                                </x-secondary-button>
+                            </a>
+                            <a href="{{ url('/campaigns-postback-cron-form/' . $campaign->id) }}">
+                                <x-danger-button class="flex-1 p-4 flex-col">
+                                    {{ __('Excluir')}}
+                                </x-danger-button>
+                            </a>    
+                        </div> --}}
                         @endforeach
                     </div>
                 </div>

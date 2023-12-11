@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Models\Campaign;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -17,6 +18,7 @@ class SendPostback implements ShouldQueue
 
     protected $lead;
     protected $webhookUrl;
+    protected $campaignId;
 
     /**
      * Create a new job instance.
@@ -25,6 +27,7 @@ class SendPostback implements ShouldQueue
     {
         $this->lead = $lead;
         $this->webhookUrl = $webhookUrl;
+        $this->campaignId = $lead->campaign_id;
     }
 
     /**
@@ -32,18 +35,40 @@ class SendPostback implements ShouldQueue
      */
     public function handle()
     {
-        \Log::info("Executando SendPostback para lead: " . json_encode($this->lead));
-        $webhookUrl = $this->lead->campaign->webhook_url;
-        $data = [
+        /*\Log::info("Executando SendPostback para lead: " . json_encode($this->lead));*/
+        $response = Http::post($this->webhookUrl, [
             'name' => $this->lead->name,
             'email' => $this->lead->email,
             'phone' => $this->lead->phone,
-        ];
+        ]);
+    
+        if ($response->successful()) {
+            $campaign = Campaign::find($this->campaignId);
+            if ($campaign) {
+                \DB::transaction(function () use ($campaign) {
+                    if(!$campaign->isProcessing) {
+                        $campaign->update([
+                            'isProcessing' => true,
+                            'sendState' => 'Enviando',
+                        ]);
+                    }
 
-        $response = Http::post($webhookUrl, $data);
+                    $campaign->increment('sendedLeads');
+                    $campaign->increment('processedLeadsCount');
 
-        if (!$response->successful()) {
-            
+                    if($campaign->processedLeadsCount == $campaign->leads()->count()) {
+                        $campaign->update(['sendState' => 'Finalizado', 'isProcessing' => false]);
+                    }
+
+                    $campaign->save();
+                });
+
+                /*\Log::info("sendedLeads e processedLeadsCount atualizados para a campanha ID: {$this->campaignId}");*/
+            } else {
+                /*\Log::errror("Campanha não encontrada para o ID: {$this->campaignId}");*/
+            }
+        } else {
+            /*\Log::error("Falha no envio do postback para o lead: ". json_encode($this->lead));*/
         }
     }
 }

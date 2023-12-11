@@ -37,7 +37,7 @@ class ProcessLeadsBatch implements ShouldQueue
      */
     public function handle()
     {
-        \Log::info("Processando batch de leads para a campanha: " . $this->campaign_id);
+        /*\Log::info("Processando lotes de leads para a campanha: " . $this->campaign_id);*/
 
         $processedLeads = [];
         foreach ($this->leads as $leadData) {

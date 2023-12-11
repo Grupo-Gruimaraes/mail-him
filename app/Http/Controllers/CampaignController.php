@@ -46,7 +46,7 @@ class CampaignController extends Controller
 
         $campaign = new Campaign();
         $campaign->name = $request->input('name');
-        $campaign->sendState = 'aguardando';
+        $campaign->sendState = 'Aguardando';
         $campaign->totalLeads = 0;
         $campaign->sendedLeads = 0;
         $campaign->webhook_url = $request->input('webhook_url');
@@ -71,7 +71,7 @@ class CampaignController extends Controller
                 }
             }
             if (count($leadsBatch) > 0) {
-                \Log::info("Leads processados do CSV: ", $leadsBatch);
+                /*\Log::info("Leads processados do CSV: ", $leadsBatch);*/
                 ProcessLeadsBatch::dispatch($leadsBatch, $campaign->id);
             }
 
@@ -144,61 +144,21 @@ class CampaignController extends Controller
         }
 
         $intervalInSeconds = ($request->postback_frequency == 'minute') ? 60 : 3600;
-
         $leads = $campaign->leads()->get();
         $totalLeads = count($leads);
         $totalBatches = ceil($totalLeads / $request->postback_count);
-
-        $this->updateCampaignSendState($campaign->id);
 
         for ($batch = 0; $batch < $totalBatches; $batch++) {
             $batchStart = $batch * $request->postback_count;
             $batchLeads = $leads->slice($batchStart, $request->postback_count);
 
-            foreach ($batchLeads as $index => $lead) {
+            foreach ($batchLeads as $lead) {
                 $randomDelay = rand(0, $intervalInSeconds / $request->postback_count);
-                $delayForThisLead = ($batch * $intervalInSeconds) + ($index * ($intervalInSeconds / $request->postback_count)) + $randomDelay;
+                $delayForThisLead = ($batch * $intervalInSeconds) + $randomDelay;
                 SendPostback::dispatch($lead, $campaign->webhook_url)->delay(now()->addSeconds($delayForThisLead));
             }
-
-            $this->updateCampaignLeads($campaign->id, count($batchLeads));
-
-            $isFinalBatch = ($batch == $totalBatches - 1);
-            $this->updateCampaignSendState($campaign->id, $isFinalBatch);
-
         }
 
         return redirect()->route('campaigns.index')->with('message', 'Postbacks agendados');
     }
-
-    private function updateCampaignLeads($campaignId, $leadsCount)
-    {
-        $campaign = Campaign::find($campaignId);
-        if($campaign) 
-        {
-            $campaign->sendedLeads += $leadsCount;
-            $campaign->save();
-        }
-    }
-
-    private function updateCampaignSendState($campaignId, $isFinalBatch = false)
-    {
-        $campaign = Campaign::find($campaignId);
-        if($campaign)
-        {
-            if ($isFinalBatch)
-            {
-                $campaign->sendState = 'Finalizada';
-            } else {
-                $campaign->sendState = 'Enviando';
-            }
-            $campaign->save();
-        } 
-    }
-
-    /*public function temporaryWebhook(Request $request) {
-        \Log::info('Dados recebidos pelo webhook: ', $request->all());
-
-        return response()->json(['message' => 'Postbacks iniciados']);
-    }*/
 }
