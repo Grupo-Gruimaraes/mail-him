@@ -112,9 +112,19 @@ class CampaignController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(string $id)
+    public function deleteCampaign($id)
     {
-        //
+        $campaign = Campaign::find($id);
+
+        if (!$campaign) {
+            return redirect()-route('campaigns.index')-with('error', 'Campanha não encontrada.');
+        }
+
+        Lead::where('campaign_id', $campaign->id)->delete();
+
+        $campaign->delete();
+
+        return redirect()->route('campaigns.index')->with('success', 'Campanha excluida com sucesso.');
     }
 
     public function showPostbackCronForm($campaignId)
