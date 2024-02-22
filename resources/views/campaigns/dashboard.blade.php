@@ -22,7 +22,7 @@
                             {{ $campaigns->links('pagination::tailwind') }}
                         </div>
                         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            @foreach($campaigns as $campaign)
+                            @foreach($campaigns->reverse() as $campaign)
                                 <div class="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden shadow-md">
                                     <div class="p-4">
                                         <div class="font-bold text-xl mb-2">{{ $campaign->name }}</div>
