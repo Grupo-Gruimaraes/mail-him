@@ -57,9 +57,18 @@ class CampaignCsvImportTest extends TestCase
         $this->assertSame(1, Lead::count());
     }
 
+    public function test_imports_csv_with_portuguese_header(): void
+    {
+        $this->upload("ID;Nome;E-mail;Telefone;\"External ID\"\r\n1;Maria Silva;maria@example.com;5511987654321;abc-1\r\n")
+            ->assertRedirect(route('campaigns.index'));
+
+        $lead = Lead::first();
+        $this->assertSame(['Maria Silva', '5511987654321', 'maria@example.com'], [$lead->name, $lead->phone, $lead->email]);
+    }
+
     public function test_rejects_csv_without_required_columns(): void
     {
-        $this->upload("nome,telefone,email\nMaria,5511987654321,maria@example.com\n")
+        $this->upload("cliente,contato,email\nMaria,5511987654321,maria@example.com\n")
             ->assertRedirect('/campaigns-create')
             ->assertSessionHasErrors('csv_file');
 

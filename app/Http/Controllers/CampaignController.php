@@ -69,7 +69,7 @@ class CampaignController extends Controller
         $headers = null;
         foreach ($this->readCsvRows(Storage::disk('local')->path($path)) as $row) {
             if ($headers === null) {
-                $headers = array_map('strtolower', $row);
+                $headers = $this->normalizeHeaders($row);
                 continue;
             }
             $leadsBatch[] = array_combine($headers, $row);
@@ -188,10 +188,10 @@ class CampaignController extends Controller
 
         foreach ($this->readCsvRows($path) as $line => $row) {
             if ($headers === null) {
-                $headers = array_map('strtolower', $row);
+                $headers = $this->normalizeHeaders($row);
                 $missing = array_diff(['name', 'phone', 'email'], $headers);
                 if ($missing) {
-                    return ['O cabeçalho precisa ter as colunas name, phone e email. Faltando: ' . implode(', ', $missing) . '.'];
+                    return ['O cabeçalho precisa ter as colunas name, phone e email (ou Nome, Telefone e Email). Faltando: ' . implode(', ', $missing) . '.'];
                 }
                 continue;
             }
@@ -211,6 +211,19 @@ class CampaignController extends Controller
         }
 
         return $errors;
+    }
+
+    /**
+     * Nomes das colunas em minúsculas, aceitando o cabeçalho em português.
+     */
+    private function normalizeHeaders(array $headers): array
+    {
+        $aliases = ['nome' => 'name', 'telefone' => 'phone', 'e-mail' => 'email'];
+
+        return array_map(function ($header) use ($aliases) {
+            $header = mb_strtolower($header);
+            return $aliases[$header] ?? $header;
+        }, $headers);
     }
 
     /**
