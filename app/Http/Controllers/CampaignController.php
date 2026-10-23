@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use App\Jobs\ProcessLeadsBatch;
 use App\Jobs\SendPostback;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
 
 class CampaignController extends Controller
 {
@@ -41,8 +42,16 @@ class CampaignController extends Controller
     public function campaignStore(Request $request)
     {
         $request->validate([
+            'name' => 'required|string|max:255',
             'webhook_url' => 'required|url',
+            'csv_file' => 'required|file|max:51200',
         ]);
+
+        $file = $request->file('csv_file');
+        $csvErrors = $this->validateLeadsCsv($file->getRealPath());
+        if ($csvErrors) {
+            return back()->withErrors(['csv_file' => $csvErrors])->withInput();
+        }
 
         $campaign = new Campaign();
         $campaign->name = $request->input('name');
@@ -51,37 +60,33 @@ class CampaignController extends Controller
         $campaign->sendedLeads = 0;
         $campaign->webhook_url = $request->input('webhook_url');
         $campaign->save();
-        
-        if ($request->hasFile('csv_file')) {
-            $file = $request->file('csv_file');
-            $filename = time() . '.' . $file->getClientOriginalExtension();
-            $path =$file->storeAs('campaigns', $filename, 'public');
-        
-            
-            $handle = fopen(storage_path('app/public/' . $path), 'r');
-            $headers = fgetcsv($handle, 1000, ",");
 
-            $batchSize = 500;
-            $leadsBatch = [];
-            while($data = fgetcsv($handle, 1000, ",")) {
-                $leadsBatch[] = array_combine($headers, $data);
-                if (count($leadsBatch) == $batchSize) {
-                    ProcessLeadsBatch::dispatch($leadsBatch, $campaign->id);
-                    $leadsBatch = [];
-                }
+        // Disco privado: o CSV tem dados pessoais dos leads
+        $path = $file->store('campaigns', 'local');
+
+        $batchSize = 500;
+        $leadsBatch = [];
+        $headers = null;
+        foreach ($this->readCsvRows(Storage::disk('local')->path($path)) as $row) {
+            if ($headers === null) {
+                $headers = array_map('strtolower', $row);
+                continue;
             }
-            if (count($leadsBatch) > 0) {
-                /*\Log::info("Leads processados do CSV: ", $leadsBatch);*/
+            $leadsBatch[] = array_combine($headers, $row);
+            if (count($leadsBatch) == $batchSize) {
                 ProcessLeadsBatch::dispatch($leadsBatch, $campaign->id);
+                $leadsBatch = [];
             }
-
-            $campaign->totalLeads = Lead::where('campaign_id', $campaign->id)->count();
-            $campaign->ftdLeads = Lead::where('campaign_id', $campaign->id)->where('ftd', true)->count();
-            $campaign->save();
-        } else {
-            $campaign->save();
         }
-        
+        if (count($leadsBatch) > 0) {
+            /*\Log::info("Leads processados do CSV: ", $leadsBatch);*/
+            ProcessLeadsBatch::dispatch($leadsBatch, $campaign->id);
+        }
+
+        $campaign->totalLeads = Lead::where('campaign_id', $campaign->id)->count();
+        $campaign->ftdLeads = Lead::where('campaign_id', $campaign->id)->where('ftd', true)->count();
+        $campaign->save();
+
         return redirect()->route('campaigns.index');
     }
 
@@ -170,5 +175,74 @@ class CampaignController extends Controller
         }
 
         return redirect()->route('campaigns.index')->with('message', 'Postbacks agendados');
+    }
+
+    /**
+     * Confere o cabeçalho e a quantidade de colunas do CSV antes de criar a campanha.
+     */
+    private function validateLeadsCsv(string $path): array
+    {
+        $headers = null;
+        $errors = [];
+        $leads = 0;
+
+        foreach ($this->readCsvRows($path) as $line => $row) {
+            if ($headers === null) {
+                $headers = array_map('strtolower', $row);
+                $missing = array_diff(['name', 'phone', 'email'], $headers);
+                if ($missing) {
+                    return ['O cabeçalho precisa ter as colunas name, phone e email. Faltando: ' . implode(', ', $missing) . '.'];
+                }
+                continue;
+            }
+
+            $leads++;
+            if (count($row) !== count($headers)) {
+                $errors[] = "Linha {$line}: tem " . count($row) . ' colunas, mas o cabeçalho tem ' . count($headers) . '.';
+                if (count($errors) === 5) {
+                    $errors[] = 'Pode haver outras linhas com o mesmo problema.';
+                    break;
+                }
+            }
+        }
+
+        if ($leads === 0) {
+            return ['O arquivo não tem nenhum lead abaixo do cabeçalho.'];
+        }
+
+        return $errors;
+    }
+
+    /**
+     * Lê o CSV linha a linha. Aceita vírgula ou ponto e vírgula, BOM e Windows-1252,
+     * que é como o Excel em português salva.
+     */
+    private function readCsvRows(string $path): \Generator
+    {
+        $handle = fopen($path, 'r');
+        $firstLine = (string) fgets($handle);
+        rewind($handle);
+        $delimiter = substr_count($firstLine, ';') > substr_count($firstLine, ',') ? ';' : ',';
+
+        $line = 0;
+        while (($row = fgetcsv($handle, 0, $delimiter)) !== false) {
+            $line++;
+            if ($line === 1) {
+                $row[0] = preg_replace('/^\xEF\xBB\xBF/', '', (string) $row[0]);
+            }
+            if ($row === [null] || $row === ['']) {
+                continue;
+            }
+
+            yield $line => array_map(function ($value) {
+                $value = (string) $value;
+                if (!mb_check_encoding($value, 'UTF-8')) {
+                    $value = mb_convert_encoding($value, 'UTF-8', 'Windows-1252');
+                }
+                return trim($value);
+            }, $row);
+        }
+
+        fclose($handle);
     }
 }
