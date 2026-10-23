@@ -238,7 +238,7 @@ class CampaignController extends Controller
         $delimiter = substr_count($firstLine, ';') > substr_count($firstLine, ',') ? ';' : ',';
 
         $line = 0;
-        while (($row = fgetcsv($handle, 0, $delimiter)) !== false) {
+        while (($row = fgetcsv($handle, 0, $delimiter, '"', '')) !== false) {
             $line++;
             if ($line === 1) {
                 $row[0] = preg_replace('/^\xEF\xBB\xBF/', '', (string) $row[0]);
