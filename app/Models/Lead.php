@@ -14,7 +14,15 @@ class Lead extends Model
         'phone',
         'email',
         'campaign_id',
-        'ftd'
+        'ftd',
+        'postback_status',
+        'queued_at',
+        'sent_at',
+    ];
+
+    protected $casts = [
+        'queued_at' => 'datetime',
+        'sent_at' => 'datetime',
     ];
 
     public function campaign()

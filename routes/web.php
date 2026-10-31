@@ -29,6 +29,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/campaigns-postback-cron-form/{campaign}', [App\Http\Controllers\CampaignController::class, 'showPostbackCronForm'])->name('campaigns.postback-cron-form');
     Route::post('/campaigns-postback-cron', [App\Http\Controllers\CampaignController::class, 'postbackCron'])->name('campaigns.postback.cron');
     Route::delete('/campaigns-delete/{campaign}', [App\Http\Controllers\CampaignController::class, 'deleteCampaign'])->name('campaigns.delete');
+    Route::post('/campaigns-pause/{campaign}', [App\Http\Controllers\CampaignController::class, 'pauseCampaign'])->name('campaigns.pause');
+    Route::post('/campaigns-resume/{campaign}', [App\Http\Controllers\CampaignController::class, 'resumeCampaign'])->name('campaigns.resume');
 
 });
 
