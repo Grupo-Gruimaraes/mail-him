@@ -6,8 +6,7 @@ use App\Models\Campaign;
 use App\Models\Lead;
 use Illuminate\Http\Request;
 use App\Jobs\ProcessLeadsBatch;
-use App\Jobs\SendPostback;
-use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 
 class CampaignController extends Controller
@@ -19,7 +18,11 @@ class CampaignController extends Controller
      */
     public function index()
     {
-        $campaigns = Campaign::paginate(10);
+        $campaigns = Campaign::query()
+            ->withCount(['leads as sent_last_24h' => fn ($query) => $query->where('sent_at', '>=', now()->subDay())])
+            ->withMax('leads as last_sent_at', 'sent_at')
+            ->orderByDesc('id')
+            ->paginate(12);
         return view('campaigns.dashboard', compact('campaigns'));
     }
 
@@ -83,10 +86,6 @@ class CampaignController extends Controller
             ProcessLeadsBatch::dispatch($leadsBatch, $campaign->id);
         }
 
-        $campaign->totalLeads = Lead::where('campaign_id', $campaign->id)->count();
-        $campaign->ftdLeads = Lead::where('campaign_id', $campaign->id)->where('ftd', true)->count();
-        $campaign->save();
-
         return redirect()->route('campaigns.index');
     }
 
@@ -122,7 +121,7 @@ class CampaignController extends Controller
         $campaign = Campaign::find($id);
 
         if (!$campaign) {
-            return redirect()-route('campaigns.index')-with('error', 'Campanha não encontrada.');
+            return redirect()->route('campaigns.index')->with('error', 'Campanha não encontrada.');
         }
 
         Lead::where('campaign_id', $campaign->id)->delete();
@@ -150,31 +149,63 @@ class CampaignController extends Controller
         ]);
     }
 
+    /**
+     * Inicia ou reconfigura o envio. Os postbacks saem aos poucos pelo campaigns:dispatch-postbacks.
+     */
     public function postbackCron(Request $request)
     {
+        $request->validate([
+            'campaign_id' => 'required|exists:campaigns,id',
+            'postback_frequency' => 'required|in:minute,hour',
+            'postback_count' => 'required|integer|min:1|max:10000',
+            'starts_at' => 'nullable|date',
+            'ends_at' => 'nullable|date',
+        ]);
+
+        $timezone = config('app.display_timezone');
+        $startsAt = $request->filled('starts_at') ? Carbon::parse($request->starts_at, $timezone)->utc() : null;
+        $endsAt = $request->filled('ends_at') ? Carbon::parse($request->ends_at, $timezone)->utc() : null;
+        if ($endsAt && $endsAt->lte($startsAt ?? now())) {
+            return back()->withErrors(['ends_at' => 'O término precisa ser depois do início.'])->withInput();
+        }
+
         $campaign = Campaign::find($request->campaign_id);
-        if (!$campaign) {
-            /*\Log::error("Campanha não encontrada para o ID: " . $request->campaign_id);*/
-            return response()->json(['error' => 'Campanha não encontrada'], 404);
+        if (!$campaign->leads()->whereIn('postback_status', ['pending', 'queued'])->exists()) {
+            return back()->withErrors(['campaign_id' => 'Todos os leads desta campanha já receberam o postback.'])->withInput();
         }
 
-        $intervalInSeconds = ($request->postback_frequency == 'minute') ? 60 : 3600;
-        $leads = $campaign->leads()->get();
-        $totalLeads = count($leads);
-        $totalBatches = ceil($totalLeads / $request->postback_count);
+        $campaign->update([
+            'postback_frequency' => $request->postback_frequency,
+            'postback_count' => $request->postback_count,
+            'starts_at' => $startsAt,
+            'ends_at' => $endsAt,
+            'dispatch_credit' => 0,
+            'sendState' => $startsAt?->isFuture() ? Campaign::SCHEDULED : Campaign::SENDING,
+        ]);
 
-        for ($batch = 0; $batch < $totalBatches; $batch++) {
-            $batchStart = $batch * $request->postback_count;
-            $batchLeads = $leads->slice($batchStart, $request->postback_count);
+        return redirect()->route('campaigns.index')
+            ->with('message', $campaign->sendState === Campaign::SCHEDULED ? 'Envio agendado.' : 'Envio iniciado.');
+    }
 
-            foreach ($batchLeads as $lead) {
-                $randomDelay = rand(0, $intervalInSeconds / $request->postback_count);
-                $delayForThisLead = ($batch * $intervalInSeconds) + $randomDelay;
-                SendPostback::dispatch($lead, $campaign->webhook_url)->delay(now()->addSeconds($delayForThisLead));
-            }
+    public function pauseCampaign(Campaign $campaign)
+    {
+        if ($campaign->isActive()) {
+            $campaign->update(['sendState' => Campaign::PAUSED]);
         }
 
-        return redirect()->route('campaigns.index')->with('message', 'Postbacks agendados');
+        return redirect()->route('campaigns.index')->with('message', 'Envio pausado.');
+    }
+
+    public function resumeCampaign(Campaign $campaign)
+    {
+        if ($campaign->sendState === Campaign::PAUSED) {
+            $campaign->update([
+                'sendState' => $campaign->starts_at?->isFuture() ? Campaign::SCHEDULED : Campaign::SENDING,
+                'dispatch_credit' => 0,
+            ]);
+        }
+
+        return redirect()->route('campaigns.index')->with('message', 'Envio retomado.');
     }
 
     /**

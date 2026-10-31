@@ -10,6 +10,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\DB;
 
 class ProcessLeadsBatch implements ShouldQueue
 {
@@ -39,26 +40,24 @@ class ProcessLeadsBatch implements ShouldQueue
     {
         /*\Log::info("Processando lotes de leads para a campanha: " . $this->campaign_id);*/
 
-        $processedLeads = [];
-        foreach ($this->leads as $leadData) {
-            $lead = Lead::create([
-                'name' => $leadData['name'],
-                'phone' => $leadData['phone'],
-                'email' => $leadData['email'],
-                'campaign_id' => $this->campaign_id,
-            ]);
-
-            $processedLeads[] = $lead->toArray();
+        if (!Campaign::whereKey($this->campaign_id)->exists()) {
+            return;
         }
 
-        $campaign = Campaign::find($this->campaign_id);
+        $now = now();
+        $rows = array_map(fn ($leadData) => [
+            'name' => $leadData['name'],
+            'phone' => $leadData['phone'],
+            'email' => $leadData['email'],
+            'campaign_id' => $this->campaign_id,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ], $this->leads);
 
-        if ($campaign) {
-            $currentLeads = json_decode($campaign->leads, true) ?? [];
-            $updatedLeads = array_merge($currentLeads, $processedLeads);
-            $campaign->leads = json_encode($updatedLeads);
-            $campaign->totalLeads += count ($processedLeads);
-            $campaign->save();
-        }
+        // Leads e contador na mesma transação: se o job for repetido, não duplica leads
+        DB::transaction(function () use ($rows) {
+            Lead::insert($rows);
+            Campaign::whereKey($this->campaign_id)->increment('totalLeads', count($rows));
+        });
     }
 }

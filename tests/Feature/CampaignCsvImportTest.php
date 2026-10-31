@@ -38,6 +38,8 @@ class CampaignCsvImportTest extends TestCase
             ->assertRedirect(route('campaigns.index'));
 
         $this->assertSame(['Maria Silva', 'Ana Lima, Jr.'], Lead::orderBy('id')->pluck('name')->all());
+        $this->assertSame(2, Campaign::first()->totalLeads);
+        $this->assertSame(['pending', 'pending'], Lead::pluck('postback_status')->all());
         $this->assertCount(1, Storage::disk('local')->files('campaigns'));
     }
 

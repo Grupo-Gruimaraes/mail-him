@@ -72,6 +72,9 @@ return [
 
     'timezone' => 'UTC',
 
+    // Fuso usado para mostrar e digitar datas na tela; o banco continua em UTC
+    'display_timezone' => env('APP_DISPLAY_TIMEZONE', 'America/Sao_Paulo'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Locale Configuration
