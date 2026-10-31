@@ -19,7 +19,10 @@ class CampaignController extends Controller
     public function index()
     {
         $campaigns = Campaign::query()
-            ->withCount(['leads as sent_last_24h' => fn ($query) => $query->where('sent_at', '>=', now()->subDay())])
+            ->withCount([
+                'leads as sent_last_24h' => fn ($query) => $query->where('sent_at', '>=', now()->subDay()),
+                'leads as remaining_leads' => fn ($query) => $query->whereIn('postback_status', ['pending', 'queued']),
+            ])
             ->withMax('leads as last_sent_at', 'sent_at')
             ->orderByDesc('id')
             ->paginate(12);

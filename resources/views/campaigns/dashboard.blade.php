@@ -45,6 +45,9 @@
                                             Total de Leads: <span class="font-semibold">{{ $campaign->totalLeads }}</span>
                                         </p>
                                         <p class="text-gray-700 dark:text-gray-400 text-base">
+                                            Leads restantes: <span class="font-semibold">{{ $campaign->remaining_leads }}</span>
+                                        </p>
+                                        <p class="text-gray-700 dark:text-gray-400 text-base">
                                             Envios últimas 24h: <span class="font-semibold">{{ $campaign->sent_last_24h }}</span>
                                         </p>
                                         <p class="text-gray-700 dark:text-gray-400 text-base">

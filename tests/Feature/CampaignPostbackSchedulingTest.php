@@ -197,7 +197,7 @@ class CampaignPostbackSchedulingTest extends TestCase
 
         $this->actingAs(User::factory()->create())->get('/campaigns')
             ->assertOk()
-            ->assertSeeInOrder(['Envios últimas 24h:', '1', 'Último envio:', '31/10/2026 11:30'])
+            ->assertSeeInOrder(['Leads restantes:', '1', 'Envios últimas 24h:', '1', 'Último envio:', '31/10/2026 11:30'])
             ->assertSee('120 por hora')
             ->assertSee('Pausar');
     }
