@@ -204,8 +204,9 @@ class CampaignPostbackSchedulingTest extends TestCase
 
     public function test_converts_legacy_jobs_keeping_unsent_leads(): void
     {
-        $campaign = $this->campaign(['sendState' => Campaign::SENDING], 3);
-        [$sent, $pendingA, $pendingB] = $campaign->leads()->orderBy('id')->pluck('id')->all();
+        $campaign = $this->campaign(['sendState' => Campaign::SENDING, 'totalLeads' => 99], 4);
+        $campaign->leads()->create(['name' => 'Lead 4', 'phone' => '5511900000004', 'email' => 'lead4@example.com']);
+        [$sent, $pendingA, $pendingB, $neverQueued, $repeated] = $campaign->leads()->orderBy('id')->pluck('id')->all();
         foreach ([$pendingA, $pendingB, $pendingA] as $leadId) {
             $command = 'O:22:"App\Jobs\SendPostback":3:{s:7:"' . "\0*\0" . 'lead";O:45:"Illuminate\Contracts\Database\ModelIdentifier":5:{s:5:"class";s:15:"App\Models\Lead";s:2:"id";i:' . $leadId
                 . ';s:9:"relations";a:0:{}s:10:"connection";s:5:"mysql";s:15:"collectionClass";N;}s:13:"' . "\0*\0" . 'webhookUrl";s:27:"https://example.com/webhook";s:13:"' . "\0*\0" . 'campaignId";i:' . $campaign->id . ';}';
@@ -218,14 +219,20 @@ class CampaignPostbackSchedulingTest extends TestCase
             ]);
         }
 
-        $this->artisan('campaigns:convert-legacy-postbacks')->assertSuccessful();
+        $this->artisan('campaigns:convert-legacy-postbacks', ['--dry-run' => true])->assertSuccessful();
+        $this->assertSame(3, DB::table('jobs')->count());
+
+        $this->artisan('campaigns:convert-legacy-postbacks', ['--skip-duplicates' => true])->assertSuccessful();
 
         $this->assertSame(0, DB::table('jobs')->count());
         $this->assertSame('sent', Lead::find($sent)->postback_status);
         $this->assertSame(['pending', 'pending'], Lead::whereIn('id', [$pendingA, $pendingB])->pluck('postback_status')->all());
+        $this->assertSame('pending', Lead::find($neverQueued)->postback_status);
+        $this->assertSame('skipped', Lead::find($repeated)->postback_status);
         $campaign->refresh();
         $this->assertSame(Campaign::SENDING, $campaign->sendState);
         $this->assertSame('hour', $campaign->postback_frequency);
         $this->assertSame(12, $campaign->postback_count);
+        $this->assertSame(4, $campaign->totalLeads);
     }
 }

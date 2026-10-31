@@ -9,7 +9,9 @@ use Illuminate\Support\Facades\DB;
 
 class ConvertLegacyPostbacks extends Command
 {
-    protected $signature = 'campaigns:convert-legacy-postbacks {--dry-run : Só mostra o que seria feito}';
+    protected $signature = 'campaigns:convert-legacy-postbacks
+        {--dry-run : Só mostra o que seria feito}
+        {--skip-duplicates : Não envia leads repetidos (mesmo nome, telefone e email) que ainda não receberam}';
 
     protected $description = 'Passa os postbacks agendados pelo fluxo antigo (um job por lead) para o disparador por minuto';
 
@@ -55,12 +57,17 @@ class ConvertLegacyPostbacks extends Command
                 $changes += ['sendState' => Campaign::SENDING, 'dispatch_credit' => 0];
             }
 
+            // O "Iniciar" antigo agendava em ordem de id e às vezes estourava o tempo no meio:
+            // o que está acima do último lead na fila nunca foi agendado
+            $neverQueued = $leadIds ? $campaign->leads()->where('id', '>', max($leadIds))->count() : 0;
+
             $this->line(sprintf(
-                '#%d %s: %d leads, %d ainda sem envio -> %s%s',
+                '#%d %s: %d leads, %d na fila e %d nunca agendados -> %s%s',
                 $campaign->id,
                 $campaign->name,
                 $campaign->leads()->count(),
                 count($leadIds),
+                $neverQueued,
                 $changes['sendState'],
                 $leadIds ? " ({$changes['postback_count']} por " . ($changes['postback_frequency'] === 'hour' ? 'hora' : 'minuto') . ')' : ''
             ));
@@ -71,10 +78,18 @@ class ConvertLegacyPostbacks extends Command
 
             DB::transaction(function () use ($campaign, $leadIds, $changes) {
                 $campaign->leads()->update(['postback_status' => 'sent']);
-                foreach (array_chunk($leadIds, 1000) as $chunk) {
-                    Lead::whereIn('id', $chunk)->update(['postback_status' => 'pending']);
+                if ($leadIds) {
+                    $campaign->leads()->where('id', '>', max($leadIds))->update(['postback_status' => 'pending']);
+                    foreach (array_chunk($leadIds, 1000) as $chunk) {
+                        Lead::whereIn('id', $chunk)->update(['postback_status' => 'pending']);
+                    }
                 }
-                $campaign->update($changes);
+
+                if ($this->option('skip-duplicates')) {
+                    $this->skipDuplicates($campaign);
+                }
+
+                $campaign->update($changes + ['totalLeads' => $campaign->leads()->where('postback_status', '!=', 'skipped')->count()]);
             });
         }
 
@@ -87,5 +102,28 @@ class ConvertLegacyPostbacks extends Command
         $this->info(count($jobIds) . ' jobs antigos ' . ($this->option('dry-run') ? 'seriam convertidos.' : 'convertidos.'));
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Mantém o primeiro lead de cada pessoa; as repetições pendentes não recebem postback.
+     */
+    private function skipDuplicates(Campaign $campaign): void
+    {
+        $keep = $campaign->leads()->selectRaw('MIN(id) as id')->groupBy('name', 'phone', 'email')->pluck('id')->flip();
+
+        $duplicates = [];
+        $campaign->leads()->where('postback_status', 'pending')->select('id')->chunkById(5000, function ($leads) use ($keep, &$duplicates) {
+            foreach ($leads as $lead) {
+                if (!isset($keep[$lead->id])) {
+                    $duplicates[] = $lead->id;
+                }
+            }
+        });
+
+        foreach (array_chunk($duplicates, 1000) as $chunk) {
+            Lead::whereIn('id', $chunk)->update(['postback_status' => 'skipped']);
+        }
+
+        $this->line("  {$campaign->name}: " . count($duplicates) . ' leads repetidos não serão enviados');
     }
 }
