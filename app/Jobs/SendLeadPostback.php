@@ -37,8 +37,8 @@ class SendLeadPostback implements ShouldQueue
             return;
         }
 
-        // Pausada ou encerrada depois de entrar na fila: o lead volta a esperar a vez
-        if ($campaign->sendState !== Campaign::SENDING) {
+        // Pausada, encerrada ou fora da faixa diária depois de entrar na fila: o lead volta a esperar a vez
+        if ($campaign->sendState !== Campaign::SENDING || !$campaign->withinDailyWindow()) {
             $lead->update(['postback_status' => 'pending', 'queued_at' => null]);
             return;
         }

@@ -81,6 +81,69 @@ class CampaignPostbackSchedulingTest extends TestCase
         $this->assertSame(Campaign::WAITING, $campaign->fresh()->sendState);
     }
 
+    public function test_start_saves_custom_daily_window(): void
+    {
+        $campaign = $this->campaign();
+
+        $this->start($campaign, ['daily_start_time' => '08:00', 'daily_end_time' => '23:00'])->assertRedirect(route('campaigns.index'));
+
+        $campaign->refresh();
+        $this->assertSame('08:00', substr($campaign->daily_start_time, 0, 5));
+        $this->assertSame('23:00', substr($campaign->daily_end_time, 0, 5));
+    }
+
+    public function test_daily_window_needs_two_different_times(): void
+    {
+        $campaign = $this->campaign();
+
+        $this->start($campaign, ['daily_start_time' => '08:00'])->assertSessionHasErrors('daily_end_time');
+        $this->start($campaign, ['daily_start_time' => '08:00', 'daily_end_time' => '08:00'])->assertSessionHasErrors('daily_end_time');
+
+        $this->assertSame(Campaign::WAITING, $campaign->fresh()->sendState);
+    }
+
+    public function test_dispatcher_only_sends_inside_the_daily_window(): void
+    {
+        Queue::fake();
+        $campaign = $this->campaign([
+            'sendState' => Campaign::SENDING, 'postback_frequency' => 'minute', 'postback_count' => 2,
+            'daily_start_time' => '08:00', 'daily_end_time' => '23:00',
+        ]);
+
+        Carbon::setTestNow('2026-11-03 05:30:00'); // 02:30 em Brasília
+        $this->artisan('campaigns:dispatch-postbacks');
+        Queue::assertNothingPushed();
+        $this->assertSame(0.0, $campaign->fresh()->dispatch_credit);
+
+        Carbon::setTestNow('2026-11-03 15:00:00'); // 12:00 em Brasília
+        $this->artisan('campaigns:dispatch-postbacks');
+        Queue::assertPushed(SendLeadPostback::class, 2);
+    }
+
+    public function test_daily_window_can_cross_midnight(): void
+    {
+        $campaign = new Campaign(['daily_start_time' => '22:00:00', 'daily_end_time' => '06:00:00']);
+
+        $this->assertTrue($campaign->withinDailyWindow(Carbon::parse('2026-11-04 02:30:00'))); // 23:30 em Brasília
+        $this->assertTrue($campaign->withinDailyWindow(Carbon::parse('2026-11-04 08:59:00'))); // 05:59
+        $this->assertFalse($campaign->withinDailyWindow(Carbon::parse('2026-11-04 09:00:00'))); // 06:00
+        $this->assertFalse($campaign->withinDailyWindow(Carbon::parse('2026-11-04 15:00:00'))); // 12:00
+    }
+
+    public function test_queued_postback_outside_daily_window_goes_back_to_pending(): void
+    {
+        Http::fake();
+        Carbon::setTestNow('2026-11-03 05:30:00'); // 02:30 em Brasília
+        $campaign = $this->campaign(['sendState' => Campaign::SENDING, 'daily_start_time' => '08:00', 'daily_end_time' => '23:00'], 1);
+        $lead = $campaign->leads()->first();
+        $lead->update(['postback_status' => 'queued', 'queued_at' => now()]);
+
+        (new SendLeadPostback($lead->id, $campaign->id))->handle();
+
+        Http::assertNothingSent();
+        $this->assertSame('pending', $lead->fresh()->postback_status);
+    }
+
     public function test_dispatcher_queues_only_the_rate_of_the_minute(): void
     {
         Queue::fake();
@@ -190,7 +253,10 @@ class CampaignPostbackSchedulingTest extends TestCase
     public function test_dashboard_shows_last_24h_and_last_send(): void
     {
         Carbon::setTestNow('2026-10-31 15:00:00');
-        $campaign = $this->campaign(['sendState' => Campaign::SENDING, 'postback_frequency' => 'hour', 'postback_count' => 120], 3);
+        $campaign = $this->campaign([
+            'sendState' => Campaign::SENDING, 'postback_frequency' => 'hour', 'postback_count' => 120,
+            'daily_start_time' => '08:00', 'daily_end_time' => '10:00',
+        ], 3);
         $leads = $campaign->leads()->orderBy('id')->get();
         $leads[0]->update(['postback_status' => 'sent', 'sent_at' => now()->subMinutes(30)]);
         $leads[1]->update(['postback_status' => 'sent', 'sent_at' => now()->subDays(2)]);
@@ -199,6 +265,8 @@ class CampaignPostbackSchedulingTest extends TestCase
             ->assertOk()
             ->assertSeeInOrder(['Leads restantes:', '1', 'Envios últimas 24h:', '1', 'Último envio:', '31/10/2026 11:30'])
             ->assertSee('120 por hora')
+            ->assertSeeText('Faixa diária: 08:00 às 10:00')
+            ->assertSee('fora do horário agora')
             ->assertSee('Pausar');
     }
 

@@ -53,6 +53,19 @@
                             <x-input-error :messages="$errors->get('ends_at')" class="mt-2" />
                         </div>
 
+                        <div class="flex flex-col justify-start mt-4">
+                            <x-input-label for="daily_start_time" :value="__('Disparar só nesta faixa de horário (opcional)')" />
+                            <div class="flex items-center gap-2 mt-1">
+                                <span class="text-sm text-gray-500">das</span>
+                                <x-text-input id="daily_start_time" class="block w-full" type="time" name="daily_start_time" :value="old('daily_start_time', $selectedCampaign->daily_start_time ? substr($selectedCampaign->daily_start_time, 0, 5) : null)" />
+                                <span class="text-sm text-gray-500">às</span>
+                                <x-text-input id="daily_end_time" class="block w-full" type="time" name="daily_end_time" :value="old('daily_end_time', $selectedCampaign->daily_end_time ? substr($selectedCampaign->daily_end_time, 0, 5) : null)" />
+                            </div>
+                            <p class="mt-1 text-sm text-gray-500">Vale todos os dias. Fora da faixa o envio espera e continua quando ela abrir. Em branco, dispara o dia todo.</p>
+                            <x-input-error :messages="$errors->get('daily_start_time')" class="mt-2" />
+                            <x-input-error :messages="$errors->get('daily_end_time')" class="mt-2" />
+                        </div>
+
                         <div class="mt-4">
                             <x-primary-button class="w-full justify-center">
                                 {{ __('Iniciar Postbacks') }}

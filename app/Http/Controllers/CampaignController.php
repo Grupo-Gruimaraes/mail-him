@@ -163,6 +163,12 @@ class CampaignController extends Controller
             'postback_count' => 'required|integer|min:1|max:10000',
             'starts_at' => 'nullable|date',
             'ends_at' => 'nullable|date',
+            'daily_start_time' => 'nullable|required_with:daily_end_time|date_format:H:i',
+            'daily_end_time' => 'nullable|required_with:daily_start_time|date_format:H:i|different:daily_start_time',
+        ], [
+            'daily_start_time.required_with' => 'Informe os dois horários da faixa diária.',
+            'daily_end_time.required_with' => 'Informe os dois horários da faixa diária.',
+            'daily_end_time.different' => 'O horário final precisa ser diferente do inicial.',
         ]);
 
         $timezone = config('app.display_timezone');
@@ -182,6 +188,8 @@ class CampaignController extends Controller
             'postback_count' => $request->postback_count,
             'starts_at' => $startsAt,
             'ends_at' => $endsAt,
+            'daily_start_time' => $request->input('daily_start_time') ?: null,
+            'daily_end_time' => $request->input('daily_end_time') ?: null,
             'dispatch_credit' => 0,
             'sendState' => $startsAt?->isFuture() ? Campaign::SCHEDULED : Campaign::SENDING,
         ]);
