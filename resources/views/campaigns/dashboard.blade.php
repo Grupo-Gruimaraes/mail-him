@@ -58,6 +58,14 @@
                                                 Ritmo: <span class="font-semibold">{{ $campaign->postback_count }} por {{ $campaign->postback_frequency === 'hour' ? 'hora' : 'minuto' }}</span>
                                             </p>
                                         @endif
+                                        @if ($campaign->hasDailyWindow())
+                                            <p class="text-gray-700 dark:text-gray-400 text-base">
+                                                Faixa diária: <span class="font-semibold">{{ substr($campaign->daily_start_time, 0, 5) }} às {{ substr($campaign->daily_end_time, 0, 5) }}</span>
+                                                @if ($campaign->isActive() && !$campaign->withinDailyWindow())
+                                                    <span class="text-sm text-amber-600 dark:text-amber-400">(fora do horário agora)</span>
+                                                @endif
+                                            </p>
+                                        @endif
                                         @if ($campaign->starts_at)
                                             <p class="text-gray-700 dark:text-gray-400 text-base">
                                                 Início: <span class="font-semibold">{{ $campaign->starts_at->setTimezone($timezone)->format('d/m/Y H:i') }}</span>

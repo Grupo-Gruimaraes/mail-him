@@ -31,6 +31,11 @@ class DispatchPostbacks extends Command
                 return;
             }
 
+            // Fora da faixa diária não acumula crédito, para não disparar em rajada quando a faixa abrir
+            if (!$campaign->withinDailyWindow($now)) {
+                return;
+            }
+
             $perMinute = $campaign->postbacksPerMinute();
             $credit = $campaign->dispatch_credit + $perMinute;
             $queued = $campaign->leads()->where('postback_status', 'queued')->count();
