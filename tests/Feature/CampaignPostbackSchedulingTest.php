@@ -270,6 +270,17 @@ class CampaignPostbackSchedulingTest extends TestCase
             ->assertSee('Pausar');
     }
 
+    public function test_finished_campaign_with_new_leads_can_be_started_again(): void
+    {
+        $campaign = $this->campaign(['sendState' => Campaign::FINISHED], 2);
+        $campaign->leads()->orderBy('id')->first()->update(['postback_status' => 'sent', 'sent_at' => now()]);
+
+        $this->actingAs(User::factory()->create())->get('/campaigns')
+            ->assertSeeText('Leads restantes: 1')
+            ->assertSee('/campaigns-postback-cron-form/' . $campaign->id, false)
+            ->assertSee('Iniciar');
+    }
+
     public function test_converts_legacy_jobs_keeping_unsent_leads(): void
     {
         $campaign = $this->campaign(['sendState' => Campaign::SENDING, 'totalLeads' => 99], 4);

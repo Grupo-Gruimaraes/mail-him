@@ -40,10 +40,6 @@ class ProcessLeadsBatch implements ShouldQueue
     {
         /*\Log::info("Processando lotes de leads para a campanha: " . $this->campaign_id);*/
 
-        if (!Campaign::whereKey($this->campaign_id)->exists()) {
-            return;
-        }
-
         $now = now();
         $rows = array_map(fn ($leadData) => [
             'name' => $leadData['name'],
@@ -54,10 +50,14 @@ class ProcessLeadsBatch implements ShouldQueue
             'updated_at' => $now,
         ], $this->leads);
 
-        // Leads e contador na mesma transação: se o job for repetido, não duplica leads
+        // Leads e contador na mesma transação (se o job for repetido, não duplica leads). A campanha é travada
+        // antes do insert: sem isso, lotes em paralelo davam deadlock entre a checagem da FK e o increment
         DB::transaction(function () use ($rows) {
+            if (!Campaign::whereKey($this->campaign_id)->lockForUpdate()->first(['id'])) {
+                return;
+            }
             Lead::insert($rows);
             Campaign::whereKey($this->campaign_id)->increment('totalLeads', count($rows));
-        });
+        }, 5);
     }
 }

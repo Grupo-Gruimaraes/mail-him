@@ -97,10 +97,10 @@
                                                     <x-secondary-button type="submit">{{ __('Retomar') }}</x-secondary-button>
                                                 </form>
                                             @endif
-                                            @if ($campaign->sendState !== App\Models\Campaign::FINISHED)
+                                            @if ($campaign->sendState !== App\Models\Campaign::FINISHED || $campaign->remaining_leads > 0)
                                                 <a href="{{ url('/campaigns-postback-cron-form/' . $campaign->id) }}">
                                                     <x-primary-button>
-                                                        {{ in_array($campaign->sendState, [App\Models\Campaign::WAITING, App\Models\Campaign::ENDED]) ? __('Iniciar') : __('Editar envio') }}
+                                                        {{ in_array($campaign->sendState, [App\Models\Campaign::WAITING, App\Models\Campaign::ENDED, App\Models\Campaign::FINISHED]) ? __('Iniciar') : __('Editar envio') }}
                                                     </x-primary-button>
                                                 </a>
                                             @endif
