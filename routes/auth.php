@@ -8,6 +8,7 @@ use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisteredUserController;
+use App\Http\Controllers\Auth\TwoFactorController;
 use App\Http\Controllers\Auth\VerifyEmailController;
 use Illuminate\Support\Facades\Route;
 
@@ -35,7 +36,7 @@ Route::middleware('guest')->group(function () {
                 ->name('password.store');
 });
 
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'two-factor'])->group(function () {
     Route::get('verify-email', EmailVerificationPromptController::class)
                 ->name('verification.notice');
 
@@ -56,4 +57,24 @@ Route::middleware('auth')->group(function () {
 
     Route::post('logout', [AuthenticatedSessionController::class, 'destroy'])
                 ->name('logout');
+
+    Route::get('profile/two-factor', [TwoFactorController::class, 'change'])
+                ->middleware('password.confirm')
+                ->name('two-factor.change');
+});
+
+// Segundo fator: atende o login em andamento (senha já conferida) e a troca de método pelo perfil
+Route::prefix('two-factor')->controller(TwoFactorController::class)->group(function () {
+    Route::get('challenge', 'challenge')->name('two-factor.challenge');
+    Route::post('challenge', 'verifyChallenge');
+    Route::post('resend', 'resend')->middleware('throttle:6,1')->name('two-factor.resend');
+    Route::get('recovery', 'recovery')->name('two-factor.recovery');
+    Route::post('recovery', 'verifyRecovery');
+    Route::get('setup', 'setup')->name('two-factor.setup');
+    Route::post('setup', 'startSetup')->middleware('throttle:10,1');
+    Route::get('setup/confirm', 'confirmSetup')->name('two-factor.setup.confirm');
+    Route::post('setup/confirm', 'verifySetup');
+    Route::get('recovery-words', 'recoveryWords')->name('two-factor.recovery-words');
+    Route::post('recovery-words', 'finish');
+    Route::post('cancel', 'cancel')->name('two-factor.cancel');
 });
